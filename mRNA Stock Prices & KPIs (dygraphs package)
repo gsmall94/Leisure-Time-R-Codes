@@ -1,0 +1,67 @@
+## Geoffrey Small
+## 04/04/2019
+## Purpose: Plot stock price time series data for Moderna, Inc. Implement the major KPIs, using "dygraphs" package
+
+
+library(htmltools) #multiple dygraphs?
+library(lubridate)
+library(quantmod)
+library(PerformanceAnalytics)
+library(TTR)
+library(dygraphs)
+
+options(scipen= 999)
+setwd(...)
+
+getSymbols("MRNA", periodicity= "daily")  #creates "MRNA" xts object
+mrna <- MRNA
+class(mrna)  #xts and zoo classes
+colnames(mrna)[1:6] <- c("Open", "High", "Low","Close","Volume","Adjusted")
+
+#Implement KPIs:
+#MACD (TTR):
+mrna$MACD <- MACD(mrna$Close, nfast= 12, nslow= 26, nsig= 9, maType= "SMA", percent= FALSE)
+#Divergence of signal and MACD:
+mrna$divergence <- mrna$macd - mrna$signal
+#RSI:
+mrna$RSI <- RSI(mrna$Close, maType= "SMA", n= 14)
+
+#Plot stock charts:
+dygraphing <- list(
+  dygraphs::dygraph(mrna[ , c(1:4, 6)], group= "MRNA", main= "MRNA Pricing"),
+  dygraphs::dygraph(mrna$Volume, group= "MRNA", main= "MRNA Volume") %>%
+    dyOptions(useDataTimezone = TRUE, plotter = 
+                "function barChartPlotter(e) {
+              var ctx = e.drawingContext;
+              var points = e.points;
+              var y_bottom = e.dygraph.toDomYCoord(0);  // see     http://dygraphs.com/jsdoc/symbols/Dygraph.html#toDomYCoord
+              
+              // This should really be based on the minimum gap
+              var bar_width = 2/3 * (points[1].canvasx - points[0].canvasx);
+              ctx.fillStyle = e.color;
+              
+              // Do the actual plotting.
+              for (var i = 0; i < points.length; i++) {
+              var p = points[i];
+              var center_x = p.canvasx;  // center of the bar
+              
+              ctx.fillRect(center_x - bar_width / 2, p.canvasy,
+              bar_width, y_bottom - p.canvasy);
+              ctx.strokeRect(center_x - bar_width / 2, p.canvasy,
+              bar_width, y_bottom - p.canvasy);
+              }
+              }"),
+  dygraphs::dygraph(mrna[ , c(7,8,9)], group= "MRNA", main= "MRNA MACD & Signal"),
+  dygraphs::dygraph(mrna$RSI, group= "MRNA", main= "MRNA RSI")
+)
+htmltools::browsable(htmltools::tagList(dygraphing))
+#.............................................................................................................................
+
+#xts split into train and valid sets:
+as.Date(index(mrna))
+mrna2 <- data.frame(date=index(mrna$Close), coredata(mrna$Close))   #convert from xts to data frame
+class(mrna2$date) #Date
+class(mrna2$Close) #Numeric
+trainmrna <- mrna$Close[1:60] 
+validmrna <- mrna$Close[61:81]
+
